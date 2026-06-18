@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Runtime data
+*.db
+*.sqlite3
+command_cache.db
+
+# Built packages
+*.vsix
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Gemini / AI agent configs
+.gemini/
+.agent/
+
+# Design & internal docs (not part of the product)
+agentshield_design.md
+agentshield_prd.md
+
+# Old extension scaffold (deprecated)
+vscode-extension/
+
+# Test files
+tests/
+
+# Environment
+.env
+.env.local
+.env.production

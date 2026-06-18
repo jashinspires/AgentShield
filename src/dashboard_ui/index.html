@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AgentShield Local-First Zero-Trust Monitoring Dashboard">
+    <title>AgentShield | Threat & Regression Monitor</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="container">
+        <!-- Header -->
+        <header id="dashboard-header">
+            <div class="brand">
+                <span class="shield-icon">🛡️</span>
+                <div class="brand-text">
+                    <h1>AgentShield</h1>
+                    <p class="subtitle">Zero-Trust Shell Proxy & AST Auditor</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <span id="status-pulse" class="pulse-green"></span>
+                <span id="status-text">SYSTEM SECURE</span>
+            </div>
+        </header>
+
+        <!-- Main Bento Grid -->
+        <main class="grid-container">
+            <!-- Sandbox Info -->
+            <section id="sandbox-metrics-card" class="card glass">
+                <h2>Sandbox Host Metrics</h2>
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">PROVIDER</span>
+                        <span id="provider-val" class="metric-val">DOCKER</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">NETWORK</span>
+                        <span id="network-val" class="metric-val block-text">DISABLED</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">MEMORY LIMIT</span>
+                        <span id="memory-val" class="metric-val">512 MB</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">CPU LIMIT</span>
+                        <span id="cpu-val" class="metric-val">1.0 CORES</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Active Dependency Graph -->
+            <section id="codebase-graph-card" class="card glass col-span-2 row-span-2">
+                <div class="card-header">
+                    <h2>Codebase Dependency Call-Graph</h2>
+                    <button id="refresh-graph-btn" class="btn-primary">Scan Workspace</button>
+                </div>
+                <div id="graph-container">
+                    <canvas id="graph-canvas"></canvas>
+                    <div id="graph-empty" class="hidden">No files found. Run code impact scans to map references.</div>
+                </div>
+            </section>
+
+            <!-- Command Interception Logs -->
+            <section id="intercept-logs-card" class="card glass col-span-3">
+                <div class="card-header">
+                    <h2>Command Interception Audit Log</h2>
+                    <button id="refresh-logs-btn" class="btn-secondary">Refresh Logs</button>
+                </div>
+                <div class="table-container">
+                    <table id="logs-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Raw Command</th>
+                                <th>Deobfuscated Command</th>
+                                <th>Verdict</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-tbody">
+                            <!-- Populated dynamically -->
+                            <tr>
+                                <td colspan="6" class="placeholder-row">Loading audits...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

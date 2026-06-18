@@ -1,0 +1,18 @@
+# AgentShield Settings
+shell: "" # Empty means auto-detect (powershell.exe on Windows, /bin/bash on Unix)
+fail_safe_mode: "closed" # "closed" to block on errors, "open" to allow
+
+sandbox:
+  provider: "docker"
+  image: "python:3.11-slim-buster"
+  memory_limit: "512m"
+  cpu_limit: "1.0"
+  network_access: false
+  network_whitelist: []
+
+database:
+  path: "command_cache.db"
+
+ollama:
+  endpoint: "http://localhost:11434/api/generate"
+  model: "qwen2.5-coder:3b"

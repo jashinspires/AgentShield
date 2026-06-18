@@ -1,0 +1,66 @@
+{
+  "name": "agentshield",
+  "displayName": "AgentShield",
+  "description": "Local-first zero-trust shell proxy and AST code auditor protecting host machines from malicious AI agent commands and code regressions.",
+  "version": "1.1.0",
+  "publisher": "agentshield",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Security",
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentshield.openDashboard",
+        "title": "Open Monitor Dashboard",
+        "category": "AgentShield"
+      },
+      {
+        "command": "agentshield.scanWorkspace",
+        "title": "Scan Codebase for AST Regressions",
+        "category": "AgentShield"
+      }
+    ],
+    "configuration": {
+      "title": "AgentShield",
+      "properties": {
+        "agentshield.enableAutostartDashboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the FastAPI monitoring dashboard server in the background when VS Code opens."
+        },
+        "agentshield.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to the Python executable to launch backend processes."
+        },
+        "agentshield.dashboardPort": {
+          "type": "integer",
+          "default": 8000,
+          "description": "Port number to host the monitoring dashboard server."
+        }
+      }
+    },
+    "terminal": {
+      "profiles": [
+        {
+          "title": "AgentShield Secure Proxy",
+          "id": "agentshield.terminalProfile",
+          "icon": "shield"
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0"
+  }
+}
