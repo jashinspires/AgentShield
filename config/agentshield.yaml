@@ -8,10 +8,16 @@ sandbox:
   memory_limit: "512m"
   cpu_limit: "1.0"
   network_access: false
-  network_whitelist: []
+  network_whitelist:
+    - "pypi.org"
+    - "*.pypi.org"
+    - "files.pythonhosted.org"
+    - "*.pythonhosted.org"
+    - "registry.npmjs.org"
+    - "*.npmjs.org"
 
 database:
-  path: "command_cache.db"
+  path: "data/command_cache.db"
 
 ollama:
   endpoint: "http://localhost:11434/api/generate"

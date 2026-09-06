@@ -33,19 +33,19 @@ command_cache.db
 Thumbs.db
 desktop.ini
 
-# Gemini / AI agent configs
-.gemini/
+# Presentations, internal docs, and agent configs (not part of the published repo)
+presentations/
+docs/
+scratch/
+.obsidian/
+.agents/
 .agent/
-
-# Design & internal docs (not part of the product)
+.gemini/
 agentshield_design.md
 agentshield_prd.md
 
 # Old extension scaffold (deprecated)
 vscode-extension/
-
-# Test files
-tests/
 
 # Environment
 .env

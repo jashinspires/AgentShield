@@ -19,6 +19,7 @@ class SignatureAuditor:
     def check_caller_mismatch(self, caller_node: ast.Call, target_signature: ast.arguments) -> List[str]:
         """
         Compares arguments passed in a Call node against target_signature.
+        Correctly accounts for bound method invocations (self/cls implicit first argument).
         Returns a list of warnings if mismatch is found.
         """
         warnings = []
@@ -43,18 +44,28 @@ class SignatureAuditor:
         has_starred_pos = any(isinstance(arg, ast.Starred) for arg in caller_node.args)
         has_double_star_kw = any(kw.arg is None for kw in caller_node.keywords)
         
+        # Check if call is a bound method invocation (e.g. obj.method() or self.method())
+        is_bound_method = False
+        if sig_pos_total and sig_pos_total[0] in ("self", "cls"):
+            if isinstance(caller_node.func, ast.Attribute):
+                is_bound_method = True
+
+        pos_offset = 1 if is_bound_method else 0
+        expected_pos_max = len(sig_pos_total) - pos_offset
+
         # 1. Match positional arguments
         provided_indices = set()
+        if is_bound_method:
+            provided_indices.add(0)  # self/cls is implicitly passed by runtime
         
-        if passed_pos > len(sig_pos_total):
+        if passed_pos > expected_pos_max:
             if not target_signature.vararg and not has_starred_pos:
-                warnings.append(f"Too many positional arguments: passed {passed_pos}, expected at most {len(sig_pos_total)}")
-            # If there's a vararg or starred, it absorbs extra
-            for i in range(len(sig_pos_total)):
+                warnings.append(f"Too many positional arguments: passed {passed_pos}, expected at most {expected_pos_max}")
+            for i in range(pos_offset, len(sig_pos_total)):
                 provided_indices.add(i)
         else:
             for i in range(passed_pos):
-                provided_indices.add(i)
+                provided_indices.add(i + pos_offset)
 
         # 2. Match keyword arguments
         for kw_name in passed_kw:
@@ -63,7 +74,7 @@ class SignatureAuditor:
                 warnings.append(f"Parameter '{kw_name}' is positional-only and cannot be passed as a keyword argument")
             elif kw_name in sig_args:
                 idx = sig_pos_only.index(kw_name) if kw_name in sig_pos_only else (len(sig_pos_only) + sig_args.index(kw_name))
-                if idx in provided_indices:
+                if idx in provided_indices and idx != (0 if is_bound_method else -1):
                     warnings.append(f"Parameter '{kw_name}' received multiple values (both positional and keyword)")
                 provided_indices.add(idx)
             elif kw_name in sig_kw_only:
@@ -77,10 +88,7 @@ class SignatureAuditor:
         # Defaults cover the end of sig_pos_total
         first_default_idx = len(sig_pos_total) - num_pos_defaults
         for idx, param_name in enumerate(sig_pos_total):
-            # If self parameter in a method, skip checking if caller doesn't pass it (it is bound implicitly)
-            if idx == 0 and param_name == "self":
-                # Wait, caller doesn't explicitly pass self unless calling unbound method,
-                # but we don't always know if it is a bound method. Let's assume bound for simplicity if self is not provided.
+            if idx == 0 and is_bound_method:
                 continue
                 
             if idx not in provided_indices:
@@ -105,9 +113,12 @@ class CodebaseAuditor:
         self.auditor = SignatureAuditor()
 
     def find_all_py_files(self) -> List[str]:
-        """Recursively finds all python files in the workspace (excluding virtual environments)."""
+        """Recursively finds all python files in the workspace (excluding virtual environments and agent/IDE data)."""
         py_files = []
-        exclude_dirs = {".git", ".venv", "venv", "env", "node_modules", "__pycache__", "build", "dist"}
+        exclude_dirs = {
+            ".git", ".venv", "venv", "env", "node_modules", "__pycache__", "build", "dist",
+            ".agent", ".agents", ".obsidian", ".idea", ".vscode"
+        }
         for root, dirs, files in os.walk(self.root):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             for file in files:
@@ -126,11 +137,14 @@ class CodebaseAuditor:
             return []
 
         # Create mapping of "absolute_namespace" -> new_sig_node
-        # e.g., {"my_pkg.utils.process_data": new_sig_node}
+        # Supports primary namespace, candidate module namespaces, and bare function names
         modified_map = {}
         for item in modified_funcs:
             abs_ns = f"{item['module']}.{item['func_name']}"
             modified_map[abs_ns] = item["new_sig"]
+            for cand in item.get("candidate_modules", []):
+                modified_map[f"{cand}.{item['func_name']}"] = item["new_sig"]
+            modified_map[item["func_name"]] = item["new_sig"]
 
         warnings_found = []
         py_files = self.find_all_py_files()
@@ -142,7 +156,7 @@ class CodebaseAuditor:
                     
                 tree = ast.parse(content)
                 module_ns = self.tracer.get_module_path(filepath)
-                resolver = NamespaceResolver(filepath, module_ns)
+                resolver = NamespaceResolver(filepath, module_ns, root=self.root)
                 
                 # Build imports map first
                 resolver.visit(tree)

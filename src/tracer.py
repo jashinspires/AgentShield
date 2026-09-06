@@ -80,6 +80,29 @@ class CodeImpactTracer:
             
         return ".".join(parts)
 
+    def get_candidate_module_namespaces(self, filepath: str) -> List[str]:
+        """
+        Returns all valid module import namespaces for a given file.
+        Supports root-relative, source-root-relative (src/, tests/, lib/, app/),
+        and direct module names for seamless cross-directory import resolution.
+        """
+        rel_path = os.path.relpath(filepath, self.root)
+        base, _ = os.path.splitext(rel_path)
+        parts = base.replace("\\", "/").split("/")
+        
+        candidates = set()
+        # 1. Full relative to project root
+        candidates.add(".".join(parts))
+        
+        # 2. Stripping standard source prefixes
+        standard_prefixes = {"src", "tests", "test", "lib", "app", "packages"}
+        if parts and parts[0] in standard_prefixes and len(parts) > 1:
+            candidates.add(".".join(parts[1:]))
+            
+        # 3. Direct basename for sibling or sys.path imports
+        candidates.add(parts[-1])
+        return sorted(list(candidates))
+
     def parse_git_diff(self) -> List[Dict[str, Any]]:
         """
         Identifies changed python files in git, parses old and new signatures,
@@ -133,6 +156,7 @@ class CodeImpactTracer:
                 new_sigs = self.parse_signatures(new_content)
                 
                 module_namespace = self.get_module_path(filepath)
+                candidate_modules = self.get_candidate_module_namespaces(filepath)
                 
                 for name, new_arg_node in new_sigs.items():
                     if name in old_sigs:
@@ -141,6 +165,7 @@ class CodeImpactTracer:
                             modified_funcs.append({
                                 "file": filepath,
                                 "module": module_namespace,
+                                "candidate_modules": candidate_modules,
                                 "func_name": name,
                                 "old_sig": old_arg_node,
                                 "new_sig": new_arg_node

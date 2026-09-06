@@ -1,38 +1,60 @@
 import sqlite3
 import hashlib
 import os
+import sys
 import re
 from typing import Tuple, Optional
 
-# Default DB path relative to project root (parent of src/)
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DEFAULT_DB_PATH = os.path.join(_PROJECT_ROOT, "command_cache.db")
+# Resolve paths relative to this file
+_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
+from config_loader import get_database_path
 
 class CommandGuard:
     def __init__(self, db_path: str = None):
         if db_path is None:
-            db_path = _DEFAULT_DB_PATH
+            db_path = get_database_path()
         self.db_path = db_path
         self.setup_cache()
         
-        # Speculative validation rules to allow safe common actions immediately
+        # Speculative validation rules to allow safe common actions immediately (<1ms)
         self.allow_rules = [
             r"^git\s+(status|diff|log|show|branch|remote|rev-parse)\b",
-            r"^pytest\b",
-            r"^npm\s+(test|run\s+test)\b",
-            r"^python\s+-m\s+pytest\b",
-            r"^cargo\s+test\b",
-            r"^go\s+test\b"
+            r"^(pytest|python\s+-m\s+pytest|python3\s+-m\s+pytest)\b",
+            r"^npm\s+(test|run\s+test|run\s+lint)\b",
+            r"^(cargo\s+test|go\s+test)\b",
+            r"^(python|python3|node|cargo|rustc|go|git|docker)\s+(--version|-v|-V)\b"
         ]
 
-        # Speculative validation rules to block extremely malicious actions instantly
+        # Speculative validation rules to block extremely malicious actions instantly (<1ms)
         self.block_rules = [
-            r"rm\s+-rf\s+(/|\~|~|/\*|\$HOME)(\s|$|\b)",
-            r"del\s+/f\s+/q\s+C:\\",
-            r"\.ssh/id_rsa",
-            r"aws_access_key_id",
-            r"slack_api_token",
-            r"passwd"
+            # 1. Linux/POSIX recursive removal
+            r"\brm\s+-[a-zA-Z0-9]*r[a-zA-Z0-9]*f[a-zA-Z0-9]*\s+(/|\~|~|/\*|\$HOME)(\s|$|\b)",
+            r"\brm\s+-[a-zA-Z0-9]*f[a-zA-Z0-9]*r[a-zA-Z0-9]*\s+(/|\~|~|/\*|\$HOME)(\s|$|\b)",
+            r"\brm\s+--no-preserve-root\b",
+            
+            # 2. PowerShell & Windows recursive removal (handles normalizer mapping rm -> Remove-Item)
+            r"\b(Remove-Item|del|erase|rd|rmdir|ri)\b.*(?:\s|/)-(Recurse|r)\b.*(?:\s|/)-(Force|f)\b.*(?:C:\\|C:/|/|\~|\$HOME|%USERPROFILE%|%SystemDrive%)",
+            r"\b(Remove-Item|del|erase|rd|rmdir|ri)\b.*(?:C:\\|C:/|/|\~|\$HOME|%USERPROFILE%|%SystemDrive%).*(?:\s|/)-(Recurse|r)\b",
+            r"\b(Remove-Item|del|erase|rd|rmdir|ri)\s+-[a-zA-Z0-9]*r[a-zA-Z0-9]*f[a-zA-Z0-9]*\s+(/|\~|~|/\*|\$HOME|C:\\)(\s|$|\b)",
+            r"\b(Remove-Item|del|erase|rd|rmdir|ri)\s+-[a-zA-Z0-9]*f[a-zA-Z0-9]*r[a-zA-Z0-9]*\s+(/|\~|~|/\*|\$HOME|C:\\)(\s|$|\b)",
+            r"\bdel\s+/[fF]\s+/[sS]\s+/[qQ]\s+[cC]:\\",
+            r"\bdel\s+/[fF]\s+/[qQ]\s+[cC]:\\",
+            r"\brmdir\s+/[sS]\s+/[qQ]\s+[cC]:\\",
+            
+            # 3. Sensitive file and credential harvesting
+            r"\.ssh/(id_rsa|id_ed25519|id_ecdsa|authorized_keys|known_hosts)",
+            r"aws_access_key_id|aws_secret_access_key",
+            r"slack_api_token|SLACK_BOT_TOKEN",
+            r"\b(cat|type|gc|Get-Content)\s+.*(\.env|\.bash_history|\.zsh_history|/etc/shadow|/etc/passwd)",
+            r"\b/etc/passwd\b|\b/etc/shadow\b",
+            r"\bSAM\b|\bSYSTEM\b.*config/system",
+            
+            # 4. Fork bombs and denial of service
+            r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",
+            r"while\s+true\s*;\s*do\s+.*&\s*done"
         ]
 
     def setup_cache(self):

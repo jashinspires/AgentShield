@@ -16,69 +16,18 @@ from deobfuscator import ShellCommandNormalizer
 from guard import CommandGuard
 from sandbox import SandboxExecutionEngine
 from brain import BrainClient
-
-
-def _find_config_file():
-    """Searches for agentshield.yaml in standard locations relative to the engine's own directory."""
-    candidates = [
-        os.path.join(_PROJECT_ROOT, "config", "agentshield.yaml"),
-        os.path.join(_SRC_DIR, "..", "config", "agentshield.yaml"),
-        os.path.join(os.getcwd(), "config", "agentshield.yaml"),
-        os.path.join(os.getcwd(), "agentshield.yaml"),
-    ]
-    for p in candidates:
-        resolved = os.path.normpath(p)
-        if os.path.isfile(resolved):
-            return resolved
-    return None
-
-
-def _load_yaml_config(path):
-    """Load YAML config, with graceful fallback if pyyaml is missing."""
-    if not path or not os.path.isfile(path):
-        return {}
-    try:
-        import yaml
-        with open(path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-    except ImportError:
-        # PyYAML not installed — parse a minimal subset manually
-        config = {}
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if ":" in line:
-                        key, _, val = line.partition(":")
-                        val = val.strip().strip('"').strip("'")
-                        if val:
-                            config[key.strip()] = val
-        except Exception:
-            pass
-        return config
-    except Exception as e:
-        sys.stderr.write(f"[AgentShield] Warning: failed to load config {path}: {e}\n")
-        return {}
+from config_loader import load_config, get_database_path
 
 
 class AgentSubshell:
-    def __init__(self, config_path=None):
-        if config_path is None:
-            config_path = _find_config_file()
-
-        self.config = _load_yaml_config(config_path)
+    def __init__(self, config_path=None, non_interactive: bool = False):
+        self.config = load_config(config_path)
+        self.non_interactive = non_interactive
         self.shell_path = self.config.get("shell") or ("powershell.exe" if os.name == "nt" else "/bin/bash")
         self.fail_safe_mode = self.config.get("fail_safe_mode", "closed")
 
-        # Database path — resolve relative to project root, not CWD
-        db_path = self.config.get("database", {}).get("path", "command_cache.db") if isinstance(self.config.get("database"), dict) else "command_cache.db"
-        if not os.path.isabs(db_path):
-            db_path = os.path.join(_PROJECT_ROOT, db_path)
-        db_dir = os.path.dirname(db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
+        # Database path resolved via unified config loader
+        db_path = get_database_path(self.config)
 
         self.guard = CommandGuard(db_path)
         self.normalizer = ShellCommandNormalizer()
@@ -118,6 +67,9 @@ class AgentSubshell:
         Bypasses standard redirected output streams to ask the user on the direct console.
         Uses 'CON' on Windows or '/dev/tty' on Linux/macOS.
         """
+        if self.non_interactive or os.environ.get("AGENTSHIELD_NON_INTERACTIVE") == "1":
+            return False
+
         console_path = "CON" if os.name == "nt" else "/dev/tty"
         try:
             with open(console_path, "r") as r_tty, open(console_path, "w") as w_tty:
@@ -258,12 +210,13 @@ def main():
     parser = argparse.ArgumentParser(description="AgentShield CLI Shell Proxy")
     parser.add_argument("-c", "--command", type=str, help="Command to run through the proxy")
     parser.add_argument("--interactive", action="store_true", help="Force interactive REPL mode")
+    parser.add_argument("--non-interactive", action="store_true", help="Disallow out-of-band console prompts and block unattended")
     parser.add_argument("--config", type=str, help="Path to agentshield.yaml config file")
     parser.add_argument("args", nargs="*", help="Direct command arguments")
     args = parser.parse_args()
 
     try:
-        subshell = AgentSubshell(config_path=args.config)
+        subshell = AgentSubshell(config_path=args.config, non_interactive=args.non_interactive)
     except Exception as e:
         sys.stderr.write(f"[AgentShield] Fatal: Failed to initialize — {e}\n")
         sys.exit(2)

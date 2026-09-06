@@ -7,18 +7,14 @@ _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SRC_DIR)
 _UI_DIR = os.path.join(_SRC_DIR, "dashboard_ui")
 
-# Database path — look in project root first, then CWD
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
+from config_loader import get_database_path
+
 def _resolve_db_path():
-    """Find the command_cache.db file. Check project root first, then CWD."""
-    candidates = [
-        os.path.join(_PROJECT_ROOT, "command_cache.db"),
-        os.path.join(os.getcwd(), "command_cache.db"),
-    ]
-    for p in candidates:
-        if os.path.isfile(p):
-            return p
-    # Default to project root (will be created on first write)
-    return os.path.join(_PROJECT_ROOT, "command_cache.db")
+    """Find the command_cache.db file using unified config loader."""
+    return get_database_path()
 
 
 # Import FastAPI with graceful error handling
@@ -114,7 +110,10 @@ def get_graph():
     # Use the workspace from env (set by extension.js) or fall back to project root
     workspace = os.environ.get("AGENTSHIELD_WORKSPACE", _PROJECT_ROOT)
     py_files = []
-    exclude_dirs = {".git", ".venv", "venv", "env", "node_modules", "__pycache__", "build", "dist", ".agent"}
+    exclude_dirs = {
+        ".git", ".venv", "venv", "env", "node_modules", "__pycache__", "build", "dist",
+        ".agent", ".agents", ".obsidian", ".idea", ".vscode"
+    }
 
     for root, dirs, files in os.walk(workspace):
         dirs[:] = [d for d in dirs if d not in exclude_dirs]
